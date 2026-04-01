@@ -17,6 +17,7 @@ const modelStatus = document.querySelector("#model-status");
 const cameraStatus = document.querySelector("#camera-status");
 const fpsStatus = document.querySelector("#fps-status");
 const gestureResults = document.querySelector("#gesture-results");
+const landmarkCoordinates = document.querySelector("#landmark-coordinates");
 
 const canvasContext = canvas.getContext("2d");
 const drawingUtils = new DrawingUtils(canvasContext);
@@ -38,6 +39,30 @@ const gestureNameMap = {
   Victory: "Victory",
   ILoveYou: "ILoveYou",
 };
+
+const handLandmarkNames = [
+  "WRIST",
+  "THUMB_CMC",
+  "THUMB_MCP",
+  "THUMB_IP",
+  "THUMB_TIP",
+  "INDEX_FINGER_MCP",
+  "INDEX_FINGER_PIP",
+  "INDEX_FINGER_DIP",
+  "INDEX_FINGER_TIP",
+  "MIDDLE_FINGER_MCP",
+  "MIDDLE_FINGER_PIP",
+  "MIDDLE_FINGER_DIP",
+  "MIDDLE_FINGER_TIP",
+  "RING_FINGER_MCP",
+  "RING_FINGER_PIP",
+  "RING_FINGER_DIP",
+  "RING_FINGER_TIP",
+  "PINKY_MCP",
+  "PINKY_PIP",
+  "PINKY_DIP",
+  "PINKY_TIP",
+];
 
 initialize();
 
@@ -105,6 +130,8 @@ async function startCamera() {
     stateBadge.textContent = "실시간 인식 중";
     gestureResults.innerHTML =
       '<p class="empty-message">손을 카메라 앞에 보여 주세요.</p>';
+    landmarkCoordinates.innerHTML =
+      '<p class="empty-message">손을 카메라 앞에 보여 주면 landmark 좌표가 표시됩니다.</p>';
 
     syncCanvasSize();
     window.addEventListener("resize", syncCanvasSize);
@@ -139,6 +166,8 @@ function stopCamera() {
   clearCanvas();
   gestureResults.innerHTML =
     '<p class="empty-message">카메라를 시작하면 인식 결과가 여기에 표시됩니다.</p>';
+  landmarkCoordinates.innerHTML =
+    '<p class="empty-message">카메라를 시작하면 landmark 좌표가 여기에 표시됩니다.</p>';
   window.removeEventListener("resize", syncCanvasSize);
 }
 
@@ -157,6 +186,7 @@ function renderLoop() {
       updateFps(nowInMs);
       drawResults(results);
       renderGestureResults(results);
+      renderLandmarkCoordinates(results);
     }
   }
 
@@ -227,6 +257,46 @@ function renderGestureResults(results) {
   gestureResults.innerHTML = cards.join("");
 }
 
+function renderLandmarkCoordinates(results) {
+  const landmarksList = results.landmarks ?? [];
+  const handedness = results.handedness ?? [];
+
+  if (!landmarksList.length) {
+    landmarkCoordinates.innerHTML =
+      '<p class="empty-message">손이 감지되면 landmark 좌표가 여기에 표시됩니다.</p>';
+    return;
+  }
+
+  const sections = landmarksList.map((landmarks, handIndex) => {
+    const handed = handedness[handIndex]?.[0]?.categoryName ?? `Hand ${handIndex + 1}`;
+    const rows = landmarks
+      .map((landmark, landmarkIndex) => {
+        const landmarkName =
+          handLandmarkNames[landmarkIndex] ?? `LANDMARK_${landmarkIndex}`;
+
+        return `
+          <div class="landmark-row">
+            <span class="landmark-name">${landmarkName}</span>
+            <span class="landmark-value">x=${formatCoordinate(landmark.x)} y=${formatCoordinate(landmark.y)} z=${formatCoordinate(landmark.z)}</span>
+          </div>
+        `;
+      })
+      .join("");
+
+    return `
+      <section class="landmark-group">
+        <div class="landmark-group-header">
+          <span class="pill">${handed}</span>
+          <span class="landmark-count">${landmarks.length} landmarks</span>
+        </div>
+        <div class="landmark-grid">${rows}</div>
+      </section>
+    `;
+  });
+
+  landmarkCoordinates.innerHTML = sections.join("");
+}
+
 function renderError(message) {
   gestureResults.innerHTML = `<p class="error-message">${message}</p>`;
 }
@@ -246,6 +316,10 @@ function updateFps(nowInMs) {
   }
 
   fpsStatus.textContent = `${Math.round(1000 / delta)}`;
+}
+
+function formatCoordinate(value) {
+  return Number(value ?? 0).toFixed(3);
 }
 
 function setModelStatus(message) {
